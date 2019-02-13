@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"flag"
 	"fmt"
-	"io"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -52,25 +51,20 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
-		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 		for _, p := range pods.Items {
 			if !knownPods[p.Name] {
 				go func() {
 					for _, c := range p.Spec.Containers {
-						fmt.Println("-----------------------------------------")
-						fmt.Printf("Logs for pod: %s, container: %s\n", p.Name, c.Name)
-						fmt.Println("-----------------------------------------")
 						req := clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
 						logs, err := req.Stream()
 						if err != nil {
 							log.Fatalf("error opening stream %v", err)
 						}
-						buf := new(bytes.Buffer)
-						_, err = io.Copy(buf, logs)
-						if err != nil {
-							log.Fatalf("error copying bytes to buffer %v", err)
+						scanner := bufio.NewScanner(logs)
+						for scanner.Scan() {
+							fmt.Printf("%s(%s) - %s\n", p.Name, c.Name, scanner.Text())
 						}
-						fmt.Println(buf.String())
+
 					}
 				}()
 			}
