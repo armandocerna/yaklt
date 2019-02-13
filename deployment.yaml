@@ -16,7 +16,7 @@ spec:
         - name: foo
           image: ubuntu:xenial
           imagePullPolicy: IfNotPresent
-          command: ["sleep", "infinity"]
+          command: ["bash", "-c", "while true; do date && sleep 5; done"]
       restartPolicy: Always
   selector:
     matchLabels:

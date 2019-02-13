@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"io"
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	//
 	// Uncomment to load all auth plugins
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -27,6 +27,8 @@ import (
 
 func main() {
 	var kubeconfig *string
+	knownPods := make(map[string]bool)
+
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
@@ -52,23 +54,30 @@ func main() {
 		}
 		fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 		for _, p := range pods.Items {
-			go func() {
-				for _, c := range p.Spec.Containers {
-					req := clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &v1.PodLogOptions{Container: c.Name})
-					logs, err := req.Stream()
-					if err != nil {
-						log.Fatalf("error opening stream %v", err)
+			if !knownPods[p.Name] {
+				go func() {
+					for _, c := range p.Spec.Containers {
+						fmt.Println("-----------------------------------------")
+						fmt.Printf("Logs for pod: %s, container: %s\n", p.Name, c.Name)
+						fmt.Println("-----------------------------------------")
+						req := clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
+						logs, err := req.Stream()
+						if err != nil {
+							log.Fatalf("error opening stream %v", err)
+						}
+						buf := new(bytes.Buffer)
+						_, err = io.Copy(buf, logs)
+						if err != nil {
+							log.Fatalf("error copying bytes to buffer %v", err)
+						}
+						fmt.Println(buf.String())
 					}
-					buf := new(bytes.Buffer)
-					_, err = io.Copy(buf, logs)
-					if err != nil {
-						log.Fatalf("error copying bytes to buffer %v", err)
-					}
-					fmt.Println(buf.String())
-				}
-			}()
+				}()
+			}
+			time.Sleep(1 * time.Second)
+			knownPods[p.Name] = true
 		}
-		time.Sleep(10 * time.Second)
+		//time.Sleep(30 * time.Second)
 	}
 }
 
