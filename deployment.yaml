@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foo
+  labels:
+    app: foo
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: foo
+      labels:
+        app: foo
+    spec:
+      containers:
+        - name: foo
+          image: ubuntu:xenial
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: foo
