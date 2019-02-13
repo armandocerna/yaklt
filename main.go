@@ -54,15 +54,16 @@ func main() {
 		for _, p := range pods.Items {
 			if !knownPods[p.Name] {
 				go func() {
-					for _, c := range p.Spec.Containers {
-						req := clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
+					pod := p
+					for _, c := range pod.Spec.Containers {
+						req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
 						logs, err := req.Stream()
 						if err != nil {
 							log.Fatalf("error opening stream %v", err)
 						}
 						scanner := bufio.NewScanner(logs)
 						for scanner.Scan() {
-							fmt.Printf("%s(%s) - %s\n", p.Name, c.Name, scanner.Text())
+							fmt.Printf("%s(%s) - %s\n", pod.Name, c.Name, scanner.Text())
 						}
 
 					}
