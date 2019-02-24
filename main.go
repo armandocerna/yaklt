@@ -4,15 +4,16 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	. "github.com/logrusorgru/aurora"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
-
 	//
 	// Uncomment to load all auth plugins
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -27,6 +28,9 @@ import (
 func main() {
 	var kubeconfig *string
 	knownPods := make(map[string]bool)
+	availableColors := []Color{RedFg, BlueFg, CyanFg, MagentaFg, GreenFg, BrownFg}
+	podColors := make(map[string]Color)
+	rand.Seed(time.Now().Unix())
 
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -56,6 +60,13 @@ func main() {
 				go func() {
 					pod := p
 					for _, c := range pod.Spec.Containers {
+
+						// Set random pod color
+						if _, ok := podColors[pod.Name]; !ok {
+							podColors[pod.Name] = availableColors[rand.Intn(len(availableColors))]
+						}
+
+						color := podColors[pod.Name]
 						req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
 						logs, err := req.Stream()
 						if err != nil {
@@ -63,7 +74,8 @@ func main() {
 						}
 						scanner := bufio.NewScanner(logs)
 						for scanner.Scan() {
-							fmt.Printf("%s(%s) - %s\n", pod.Name, c.Name, scanner.Text())
+							l := fmt.Sprintf("%s(%s) - %s\n", pod.Name, c.Name, scanner.Text())
+							fmt.Println(Colorize(l, color))
 						}
 
 					}
