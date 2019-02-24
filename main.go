@@ -25,12 +25,22 @@ import (
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
 )
 
+var namespace string
+var allNamespaces bool
+
+func init() {
+	flag.BoolVar(&allNamespaces, "a", false, "all namespaces")
+	flag.StringVar(&namespace, "n", "", "specify namespace)")
+}
+
 func main() {
+
 	var kubeconfig *string
 	knownPods := make(map[string]bool)
-	availableColors := []Color{RedFg, BlueFg, CyanFg, MagentaFg, GreenFg, BrownFg}
 	podColors := make(map[string]Color)
+	availableColors := []Color{RedFg, BlueFg, CyanFg, MagentaFg, GreenFg, BrownFg}
 	rand.Seed(time.Now().Unix())
+	flag.Parse()
 
 	if home := homeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -44,14 +54,38 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+	oc, err := clientcmd.LoadFromFile(*kubeconfig)
+	dcc := clientcmd.NewDefaultClientConfig(*oc, &clientcmd.ConfigOverrides{})
+	defaultNamespace, ok, err := dcc.Namespace()
+	if err != nil {
+		log.Println("namespace error: %v", err)
+		if !ok {
+			log.Println("namespace lookup error: %v", err)
+			defaultNamespace = "default"
+		}
+	}
 
+	//dc := clientcmd.DirectClientConfig{}
+	//dc.Namespace()kk
 	// create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
 	for {
-		pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
+		if (namespace != "" || foundNamespace) {
+			fmt.Println("SPECIFY NAMESPACE")
+			nsList := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+			foundNamespace := false
+			for _, n := range nsList {
+				if n == namespace { foundNamespace = true }
+			}
+		} else if allNamespaces {
+			namespace = ""
+		} else {
+			namespace = defaultNamespace
+		}
+		pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 		if err != nil {
 			panic(err.Error())
 		}
