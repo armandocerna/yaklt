@@ -56,7 +56,7 @@ func main() {
 			panic(err.Error())
 		}
 		for _, p := range pods.Items {
-			if !knownPods[p.Name] {
+			if !knownPods[p.Name] && p.Status.Phase == v1.PodRunning  {
 				go func() {
 					pod := p
 					for _, c := range pod.Spec.Containers {
