@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	. "github.com/logrusorgru/aurora"
@@ -42,10 +41,6 @@ func main() {
 	flag.Parse()
 
 	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
 	oc, err := clientcmd.LoadFromFile(*kubeconfig)
 	dcc := clientcmd.NewDefaultClientConfig(*oc, &clientcmd.ConfigOverrides{})
 	defaultNamespace, ok, err := dcc.Namespace()
@@ -57,18 +52,21 @@ func main() {
 		}
 	}
 
-	//dc := clientcmd.DirectClientConfig{}
-	//dc.Namespace()kk
+	config, err := dcc.ClientConfig()
+	if err != nil {
+		log.Fatalf("error creating client config: %v", err)
+	}
+
 	// create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		log.Fatalf("error creating clientset: %v", err)
 	}
 	for {
 		if specifiedNamespace != "" {
 			nsList, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
 			if err != nil {
-				panic(err.Error())
+				log.Fatalf("error listing namespaces: %v", err)
 			}
 			foundNamespace := false
 			for _, n := range nsList.Items {
@@ -78,7 +76,7 @@ func main() {
 				}
 			}
 			if !foundNamespace {
-				panic(errors.New(fmt.Sprintf("unable to find requested namespace, %s", specifiedNamespace)))
+				log.Fatalf("error finding requested namespace: %s", specifiedNamespace)
 			}
 		} else if allNamespaces {
 			namespace = ""
@@ -87,7 +85,7 @@ func main() {
 		}
 		pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 		if err != nil {
-			panic(err.Error())
+			log.Fatalf("error listing pods: %v", err)
 		}
 		for _, p := range pods.Items {
 			if !knownPods[p.Name] && p.Status.Phase == v1.PodRunning  {
