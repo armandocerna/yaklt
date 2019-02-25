@@ -15,21 +15,20 @@ import (
 	"path/filepath"
 	"time"
 )
-
-var specifiedNamespace, namespace string
-var allNamespaces bool
+var (
+	specifiedNamespace, specifiedSelector, namespace string
+	allNamespaces bool
+)
 
 func init() {
 	flag.BoolVar(&allNamespaces, "a", false, "all namespaces")
 	flag.StringVar(&specifiedNamespace, "n", "", "specify namespace")
+	flag.StringVar(&specifiedSelector, "l", "", "specify label selector")
 }
 
 func main() {
 
 	var kubeconfig *string
-	knownPods := make(map[string]bool)
-	podColors := make(map[string]Color)
-	availableColors := []Color{RedFg, BlueFg, CyanFg, MagentaFg, GreenFg, BrownFg}
 	rand.Seed(time.Now().Unix())
 	flag.Parse()
 
@@ -62,28 +61,48 @@ func main() {
 	if err != nil {
 		log.Fatalf("error creating clientset: %v", err)
 	}
-	for {
-		if specifiedNamespace != "" {
-			nsList, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
-			if err != nil {
-				log.Fatalf("error listing namespaces: %v", err)
-			}
-			foundNamespace := false
-			for _, n := range nsList.Items {
-				if n.Name == specifiedNamespace {
-					foundNamespace = true
-					namespace = specifiedNamespace
-				}
-			}
-			if !foundNamespace {
-				log.Fatalf("error finding requested namespace: %s", specifiedNamespace)
-			}
-		} else if allNamespaces {
-			namespace = ""
-		} else {
-			namespace = defaultNamespace
+	if (specifiedNamespace != "" && allNamespaces) { log.Fatalln("-a and -n are mutually exclusive options")}
+
+	namespace := determineNamespace(clientset, specifiedNamespace, defaultNamespace, allNamespaces)
+
+	selectorOptions := metav1.ListOptions{}
+	if specifiedSelector != "" {
+		selectorOptions = metav1.ListOptions{LabelSelector:specifiedSelector}
+	}
+	getLogs(clientset, namespace, selectorOptions)
+}
+
+// Determine correct namespace to pass
+func determineNamespace(clientset *kubernetes.Clientset, specifiedNamespace, defaultNamespace string, allNamespaces bool) string {
+	if specifiedNamespace != "" {
+		nsList, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+		if err != nil {
+			log.Fatalf("error listing namespaces: %v", err)
 		}
-		pods, err := clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+		foundNamespace := false
+		for _, n := range nsList.Items {
+			if n.Name == specifiedNamespace {
+				foundNamespace = true
+				return specifiedNamespace
+			}
+		}
+		if !foundNamespace {
+			log.Fatalf("error finding requested namespace: %s", specifiedNamespace)
+		}
+	} else if allNamespaces {
+		return ""
+	}
+	return defaultNamespace
+}
+
+func getLogs(clientset *kubernetes.Clientset, n string, s metav1.ListOptions) {
+
+	availableColors := []Color{RedFg, BlueFg, CyanFg, MagentaFg, GreenFg, BrownFg}
+	knownPods := make(map[string]bool)
+	podColors := make(map[string]Color)
+
+	for {
+		pods, err := clientset.CoreV1().Pods(n).List(s)
 		if err != nil {
 			log.Fatalf("error listing pods: %v", err)
 		}
@@ -116,7 +135,6 @@ func main() {
 			time.Sleep(1 * time.Second)
 			knownPods[p.Name] = true
 		}
-		//time.Sleep(30 * time.Second)
 	}
 }
 
