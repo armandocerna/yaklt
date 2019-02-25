@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	. "github.com/logrusorgru/aurora"
@@ -14,23 +15,14 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	//
-	// Uncomment to load all auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth"
-	//
-	// Or uncomment to load specific auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/azure"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
 )
 
-var namespace string
+var specifiedNamespace, namespace string
 var allNamespaces bool
 
 func init() {
 	flag.BoolVar(&allNamespaces, "a", false, "all namespaces")
-	flag.StringVar(&namespace, "n", "", "specify namespace)")
+	flag.StringVar(&specifiedNamespace, "n", "", "specify namespace")
 }
 
 func main() {
@@ -73,12 +65,20 @@ func main() {
 		panic(err.Error())
 	}
 	for {
-		if (namespace != "" || foundNamespace) {
-			fmt.Println("SPECIFY NAMESPACE")
-			nsList := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+		if specifiedNamespace != "" {
+			nsList, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+			if err != nil {
+				panic(err.Error())
+			}
 			foundNamespace := false
-			for _, n := range nsList {
-				if n == namespace { foundNamespace = true }
+			for _, n := range nsList.Items {
+				if n.Name == specifiedNamespace {
+					foundNamespace = true
+					namespace = specifiedNamespace
+				}
+			}
+			if !foundNamespace {
+				panic(errors.New(fmt.Sprintf("unable to find requested namespace, %s", specifiedNamespace)))
 			}
 		} else if allNamespaces {
 			namespace = ""
