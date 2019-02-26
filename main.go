@@ -108,6 +108,7 @@ func getLogs(clientset *kubernetes.Clientset, n string, s metav1.ListOptions) {
 		if err != nil {
 			log.Fatalf("error listing pods: %v", err)
 		}
+
 		for _, p := range pods.Items {
 			if !knownPods[p.Name] && p.Status.Phase == v1.PodRunning  {
 				go func() {
@@ -123,7 +124,7 @@ func getLogs(clientset *kubernetes.Clientset, n string, s metav1.ListOptions) {
 						req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container:c.Name, Follow:true, TailLines: &tailLines})
 						logs, err := req.Stream()
 						if err != nil {
-							log.Fatalf("error opening stream %v", err)
+							log.Printf("error opening stream %v", err)
 						}
 
 						knownPods[pod.Name] = true
