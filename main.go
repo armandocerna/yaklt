@@ -17,6 +17,7 @@ import (
 )
 var (
 	specifiedNamespace, specifiedSelector, namespace string
+	tailLines int64
 	allNamespaces bool
 )
 
@@ -24,6 +25,7 @@ func init() {
 	flag.BoolVar(&allNamespaces, "a", false, "all namespaces")
 	flag.StringVar(&specifiedNamespace, "n", "", "specify namespace")
 	flag.StringVar(&specifiedSelector, "l", "", "specify label selector")
+	flag.Int64Var(&tailLines, "tl", 20, "specify label selector")
 }
 
 func main() {
@@ -118,11 +120,14 @@ func getLogs(clientset *kubernetes.Clientset, n string, s metav1.ListOptions) {
 						}
 
 						color := podColors[pod.Name]
-						req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container:c.Name, Follow:true})
+						req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container:c.Name, Follow:true, TailLines: &tailLines})
 						logs, err := req.Stream()
 						if err != nil {
 							log.Fatalf("error opening stream %v", err)
 						}
+
+						knownPods[pod.Name] = true
+
 						scanner := bufio.NewScanner(logs)
 						for scanner.Scan() {
 							l := fmt.Sprintf("%s(%s) - %s\n", pod.Name, c.Name, scanner.Text())
@@ -133,7 +138,6 @@ func getLogs(clientset *kubernetes.Clientset, n string, s metav1.ListOptions) {
 				}()
 			}
 			time.Sleep(1 * time.Second)
-			knownPods[p.Name] = true
 		}
 	}
 }
